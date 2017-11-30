@@ -7,15 +7,9 @@
 //
 //
 
-#import <Foundation/Foundation.h>
+#import "CBLBase.h"
 
-#if __has_feature(nullability) // Xcode 6.3+
-#pragma clang assume_nonnull begin
-#else
-#define nullable
-#define __nullable
-#endif
-
+NS_ASSUME_NONNULL_BEGIN
 
 /** Identifies a change to a database, that is, a newly added document revision.
     The CBLDocumentChangeNotification contains one of these in the "change" key of its
@@ -25,8 +19,8 @@
 /** The ID of the document that changed. */
 @property (readonly) NSString* documentID;
 
-/** The ID of the newly-added revision. */
-@property (readonly) NSString* revisionID;
+/** The ID of the newly-added revision. A nil value means the document was purged. */
+@property (readonly, nullable) NSString* revisionID;
 
 /** Is the new revision the document's current (default, winning) one?
     If not, there's a conflict. */
@@ -35,12 +29,15 @@
 /** YES if the document is in conflict. (The conflict might pre-date this change.) */
 @property (readonly) BOOL inConflict;
 
+/** YES of the document is deleted. */
+@property (readonly) BOOL isDeletion;
+
 /** The remote database URL that this change was pulled from, if any. */
 @property (readonly, nullable) NSURL* source;
+
+- (instancetype) init NS_UNAVAILABLE;
 
 @end
 
 
-#if __has_feature(nullability)
-#pragma clang assume_nonnull end
-#endif
+NS_ASSUME_NONNULL_END

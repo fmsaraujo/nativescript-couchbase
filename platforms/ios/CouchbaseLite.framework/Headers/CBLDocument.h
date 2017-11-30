@@ -10,13 +10,7 @@
 @class CBLSavedRevision, CBLUnsavedRevision, CBLDatabaseChange;
 @protocol CBLDocumentModel;
 
-#if __has_feature(nullability) // Xcode 6.3+
-#pragma clang assume_nonnull begin
-#else
-#define nullable
-#define __nullable
-#endif
-
+NS_ASSUME_NONNULL_BEGIN
 
 /** A CouchbaseLite document (as opposed to any specific revision of it.) */
 @interface CBLDocument : NSObject
@@ -45,6 +39,9 @@
     The purge will NOT be replicated to other databases. */
 - (BOOL) purgeDocument: (NSError**)outError;
 
+/** A date/time after which this document will be automatically purged. */
+@property (strong, nullable) NSDate* expirationDate;
+
 
 #pragma mark REVISIONS:
 
@@ -58,15 +55,15 @@
 - (nullable CBLSavedRevision*) revisionWithID: (NSString*)revisionID;
 
 /** Returns the document's history as an array of CBLRevisions. (See CBLRevision's method.) */
-- (nullable NSArray*) getRevisionHistory: (NSError**)outError;
+- (nullable CBLArrayOf(CBLSavedRevision*)*) getRevisionHistory: (NSError**)outError;
 
 /** Returns all the current conflicting revisions of the document. If the document is not
     in conflict, only the single current revision will be returned. */
-- (nullable NSArray*) getConflictingRevisions: (NSError**)outError;
+- (nullable CBLArrayOf(CBLSavedRevision*)*) getConflictingRevisions: (NSError**)outError;
 
 /** Returns all the leaf revisions in the document's revision tree,
     including deleted revisions (i.e. previously-resolved conflicts.) */
-- (nullable NSArray*) getLeafRevisions: (NSError**)outError;
+- (nullable CBLArrayOf(CBLSavedRevision*)*) getLeafRevisions: (NSError**)outError;
 
 /** Creates an unsaved new revision whose parent is the currentRevision,
     or which will be the first revision if the document doesn't exist yet.
@@ -81,11 +78,11 @@
     This is shorthand for self.currentRevision.properties.
     Any keys in the dictionary that begin with "_", such as "_id" and "_rev", contain CouchbaseLite
     metadata. */
-@property (readonly, copy, nullable) NSDictionary* properties;
+@property (readonly, copy, nullable) CBLJSONDict* properties;
 
 /** The user-defined properties, without the ones reserved by CouchDB.
     This is based on -properties, with every key whose name starts with "_" removed. */
-@property (readonly, copy, nullable) NSDictionary* userProperties;
+@property (readonly, copy, nullable) CBLJSONDict* userProperties;
 
 /** Shorthand for [self.properties objectForKey: key]. */
 - (nullable id) propertyForKey: (NSString*)key;
@@ -95,7 +92,7 @@
 
 /** Saves a new revision. The properties dictionary must have a "_rev" property whose ID matches the current revision's (as it will if it's a modified copy of this document's .properties
     property.) */
-- (nullable CBLSavedRevision*) putProperties: (NSDictionary*)properties
+- (nullable CBLSavedRevision*) putProperties: (CBLJSONDict*)properties
                                        error: (NSError**)outError;
 
 /** Saves a new revision by letting the caller update the existing properties.
@@ -112,6 +109,32 @@
 - (nullable CBLSavedRevision*) update: (BOOL(^)(CBLUnsavedRevision*))block
                                 error: (NSError**)outError;
 
+/** Adds an existing revision copied from another database. Unlike a normal insertion, this does
+    not assign a new revision ID; instead the revision's ID must be given. The revision's history
+    (ancestry) must be given, which can put it anywhere in the revision tree. It's not an error if
+    the revision already exists locally; it will just be ignored.
+
+    This is not an operation that clients normally perform; it's used by the replicator.
+    You might want to use it if you're pre-loading a database with canned content, or if you're
+    implementing some new kind of replicator that transfers revisions from another database.
+    @param properties  The properties of the revision (_id and _rev will be ignored, but _deleted
+                    and _attachments are recognized.)
+    @param attachments  A dictionary providing attachment bodies. The keys are the attachment
+                    names (matching the keys in the properties' `_attachments` dictionary) and
+                    the values are the attachment bodies as NSData or NSURL.
+    @param revIDs  The revision history in the form of an array of revision-ID strings, in
+                    reverse chronological order. The first item must be the new revision's ID.
+                    Following items are its parent's ID, etc.
+    @param sourceURL  The URL of the database this revision came from, if any. (This value shows
+                    up in the CBLDatabaseChange triggered by this insertion, and can help clients
+                    decide whether the change is local or not.)
+    @param outError  Error information will be stored here if the insertion fails.
+    @return  YES on success, NO on failure. */
+- (BOOL) putExistingRevisionWithProperties: (CBLJSONDict*)properties
+                               attachments: (nullable NSDictionary*)attachments
+                           revisionHistory: (CBLArrayOf(NSString*)*)revIDs
+                                   fromURL: (nullable NSURL*)sourceURL
+                                     error: (NSError**)outError;
 
 #pragma mark MODEL:
 
@@ -120,6 +143,8 @@
     Note that this is a weak reference. */
 @property (weak, nullable) id<CBLDocumentModel> modelObject;
 
+
+- (instancetype) init NS_UNAVAILABLE;
 
 @end
 
@@ -145,6 +170,4 @@
 extern NSString* const kCBLDocumentChangeNotification;
 
 
-#if __has_feature(nullability)
-#pragma clang assume_nonnull end
-#endif
+NS_ASSUME_NONNULL_END

@@ -6,16 +6,10 @@
 //  Copyright (c) 2011-2013 Couchbase, Inc. All rights reserved.
 //
 
-#import "MYDynamicObject.h"
+#import "CBLDynamicObject.h"
 #import "CBLDocument.h"
 
-#if __has_feature(nullability) // Xcode 6.3+
-#pragma clang assume_nonnull begin
-#else
-#define nullable
-#define __nullable
-#endif
-
+NS_ASSUME_NONNULL_BEGIN
 @class CBLAttachment, CBLDatabase;
 
 
@@ -27,17 +21,20 @@ NS_REQUIRES_PROPERTY_DEFINITIONS  // Don't let compiler auto-synthesize properti
     Supported object types are NSString, NSNumber, NSData, NSDate, NSArray, NSDictionary, NSDecimalNumber. (NSData and NSDate are not native JSON; they will be automatically converted to/from strings in base64 and ISO date formats, respectively. NSDecimalNumber is not native JSON as well; it will be converted to/from string.)
     Additionally, a property's type can be a pointer to a CBLModel subclass. This provides references between model objects. The raw property value in the document must be a string whose value is interpreted as a document ID.
     NSArray-valued properties may be restricted to a specific item class. See the documentation of +itemClassForArrayProperty: for details. */
-@interface CBLModel : MYDynamicObject <CBLDocumentModel>
+@interface CBLModel : CBLDynamicObject <CBLDocumentModel>
 
 /** Returns the CBLModel associated with a CBLDocument, or creates & assigns one if necessary.
     If the CBLDocument already has an associated model, it's returned. Otherwise a new one is instantiated.
     If you call this on CBLModel itself, it'll delegate to the CBLModelFactory to decide what class to instantiate; this lets you map different classes to different "type" property values, for instance.
     If you call this method on a CBLModel subclass, it will always instantiate an instance of that class; e.g. [MyWidgetModel modelForDocument: doc] always creates a MyWidgetModel. */
-+ (instancetype) modelForDocument: (CBLDocument*)document;
++ (nullable instancetype) modelForDocument: (CBLDocument*)document;
 
 /** Returns a new "untitled" CBLModel with a new unsaved document.
  The document won't be written to the database until -save is called. */
 + (instancetype) modelForNewDocumentInDatabase: (CBLDatabase*)database;
+
+// You cannot create CBLModel instances with -init. Use the factory class methods instead.
+- (instancetype) init NS_UNAVAILABLE;
 
 /** The document this item is associated with. Will be nil if it's new and unsaved. */
 @property (readonly, strong, nullable) CBLDocument* document;
@@ -68,7 +65,8 @@ NS_REQUIRES_PROPERTY_DEFINITIONS  // Don't let compiler auto-synthesize properti
 @property (readonly) bool needsSave;
 
 /** The document's current properties (including unsaved changes) in externalized JSON format.
-    This is what will be written to the CBLDocument when the model is saved. */
+    This is what will be written to the CBLDocument when the model is saved.
+    It is not safe to send -[CBLModel propertiesToSave] to an instance whose document == nil. */
 - (NSDictionary*) propertiesToSave;
 
 /** Removes any changes made to properties and attachments since the last save. */
@@ -89,7 +87,7 @@ NS_REQUIRES_PROPERTY_DEFINITIONS  // Don't let compiler auto-synthesize properti
     @param models  An array of CBLModel objects, which must all be in the same database.
     @param outError  On return, the error (if the call failed.)
     @return  A RESTOperation that saves all changes, or nil if none of the models need saving. */
-+ (BOOL) saveModels: (NSArray*)models
++ (BOOL) saveModels: (CBLArrayOf(CBLModel*)*)models
               error: (NSError**)outError;
 
 /** Resets the timeSinceExternallyChanged property to zero. */
@@ -119,13 +117,13 @@ NS_REQUIRES_PROPERTY_DEFINITIONS  // Don't let compiler auto-synthesize properti
     @param relation  The property name to look at
     @param fromClass  (Optional) The CBLModel subclass to restrict the search to.
     @return  An array of model objects found, or nil on error. */
-- (NSArray*) findInverseOfRelation: (NSString*)relation
-                         fromClass: (nullable Class)fromClass;
+- (CBLArrayOf(CBLModel*)*) findInverseOfRelation: (NSString*)relation
+                                       fromClass: (nullable Class)fromClass;
 
 
 /** The names of all attachments (array of strings).
     This reflects unsaved changes made by creating or deleting attachments. */
-@property (readonly, nullable) NSArray* attachmentNames;
+@property (readonly, nullable) CBLArrayOf(NSString*)* attachmentNames;
 
 /** Looks up the attachment with the given name (without fetching its contents). */
 - (nullable CBLAttachment*) attachmentNamed: (NSString*)name;
@@ -168,7 +166,7 @@ NS_REQUIRES_PROPERTY_DEFINITIONS  // Don't let compiler auto-synthesize properti
 
 /** The document ID to use when creating a new document.
     Default is nil, which means to assign no ID (the server will assign one). */
-- (NSString*) idForNewDocumentInDatabase: (CBLDatabase*)db              __attribute__((nonnull));
+- (nullable NSString*) idForNewDocumentInDatabase: (CBLDatabase*)db;
 
 /** Called when the model's properties are reloaded from the document.
     This happens both when initialized from a document, and after an external change. */
@@ -176,7 +174,7 @@ NS_REQUIRES_PROPERTY_DEFINITIONS  // Don't let compiler auto-synthesize properti
 
 /** Returns the database in which to look up the document ID of a model-valued property.
     Defaults to the same database as the receiver's document. You should override this if a document property contains the ID of a document in a different database. */
-- (CBLDatabase*) databaseForModelProperty: (NSString*)propertyName      __attribute__((nonnull));
+- (CBLDatabase*) databaseForModelProperty: (NSString*)propertyName;
 
 /** Marks the model as having unsaved content, ensuring that it will get saved after a short interval (if .autosaves is YES) or when -save or -[CBLDatabase saveAllModels] are called.
     You don't normally need to call this, since property setters call it for you. One case where you'd need to call it is if you want to manage mutable state in your own properties and not store the changes into dynamic properties until it's time to save. In that case you should also override -propertiesToSave and update the dynamic properties accordingly before chaining to the superclass method. */
@@ -232,7 +230,7 @@ NS_REQUIRES_PROPERTY_DEFINITIONS  // Don't let compiler auto-synthesize properti
 @interface CBLDatabase (CBLModel)
 
 /** All CBLModels associated with this database whose needsSave is true. */
-@property (readonly) NSArray* unsavedModels;
+@property (readonly, nullable) CBLArrayOf(CBLModel*)* unsavedModels;
 
 /** Saves changes to all CBLModels associated with this database whose needsSave is true. */
 - (BOOL) saveAllModels: (NSError**)outError;
@@ -245,6 +243,4 @@ NS_REQUIRES_PROPERTY_DEFINITIONS  // Don't let compiler auto-synthesize properti
 @end
 
 
-#if __has_feature(nullability)
-#pragma clang assume_nonnull end
-#endif
+NS_ASSUME_NONNULL_END

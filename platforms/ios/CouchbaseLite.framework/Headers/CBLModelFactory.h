@@ -9,13 +9,7 @@
 #import "CBLDatabase.h"
 @class CBLDocument;
 
-#if __has_feature(nullability) // Xcode 6.3+
-#pragma clang assume_nonnull begin
-#else
-#define nullable
-#define __nullable
-#endif
-
+NS_ASSUME_NONNULL_BEGIN
 
 /** A configurable mapping from CBLDocument to CBLModel.
     It associates a model class with a value of the document's "type" property. */
@@ -46,14 +40,14 @@
 - (nullable Class) classForDocument: (CBLDocument*)document;
 
 /** Looks up the CBLModel subclass that's been registered for a document type. */
-- (Class) classForDocumentType: (NSString*)type;
+- (nullable Class) classForDocumentType: (NSString*)type;
 
 /** Looks up the document type for which the given class has been registered.
     If it's unregistered, or registered with multiple types, returns nil. */
 - (nullable NSString*) documentTypeForClass: (Class)modelClass;
 
 /** Looks up the document types for which the given class has been registered. */
-- (NSArray*) documentTypesForClass: (Class)modelClass;
+- (CBLArrayOf(NSString*)*) documentTypesForClass: (Class)modelClass;
 
 @end
 
@@ -67,6 +61,4 @@
 @end
 
 
-#if __has_feature(nullability)
-#pragma clang assume_nonnull end
-#endif
+NS_ASSUME_NONNULL_END

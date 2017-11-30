@@ -6,15 +6,9 @@
 //  Copyright (c) 2012-2013 Couchbase, Inc. All rights reserved.
 //
 
-#import <Foundation/Foundation.h>
+#import "CBLBase.h"
 
-#if __has_feature(nullability) // Xcode 6.3+
-#pragma clang assume_nonnull begin
-#else
-#define nullable
-#define __nullable
-#endif
-
+NS_ASSUME_NONNULL_BEGIN
 
 /** Identical to the corresponding NSJSON option flags. */
 enum {
@@ -38,13 +32,17 @@ typedef NSUInteger CBLJSONWritingOptions;
 
 /** Same as -dataWithJSONObject... but returns an NSString. */
 + (nullable NSString*) stringWithJSONObject:(id)obj
-                           options:(CBLJSONWritingOptions)opt
-                             error:(NSError**)error;
+                                    options:(CBLJSONWritingOptions)opt
+                                      error:(NSError**)error;
+
++ (nullable id) JSONObjectWithData:(NSData *)data;
+
++ (nullable NSData*) dataWithJSONObject:(id)obj;
 
 /** Given valid JSON data representing a dictionary, inserts the contents of the given NSDictionary into it and returns the resulting JSON data.
     This does not parse or regenerate the JSON, so it's quite fast.
     But it will generate invalid JSON if the input JSON begins or ends with whitespace, or if the dictionary contains any keys that are already in the original JSON. */
-+ (NSData*) appendDictionary: (NSDictionary*)dict
++ (NSData*) appendDictionary: (CBLJSONDict*)dict
         toJSONDictionaryData: (NSData*)json;
 
 /** Same as above but inserts a pre-encoded JSON dictionary instead of an NSDictionary. */
@@ -56,23 +54,23 @@ typedef NSUInteger CBLJSONWritingOptions;
 + (NSString*) JSONObjectWithDate: (NSDate*)date timeZone:(NSTimeZone *)tz;
 
 /** Parses an ISO-8601 formatted date string to an NSDate object.
-    If the object is not a string, or not valid ISO-8601, it returns nil. */
-+ (nullable NSDate*) dateWithJSONObject: (id)jsonObject;
+    If the object is not a string, or not valid ISO-8601, or nil, it returns nil. */
++ (nullable NSDate*) dateWithJSONObject: (nullable id)jsonObject;
 
 /** Parses an ISO-8601 formatted date string to an absolute time (timeSinceReferenceDate).
-    If the object is not a string, or not valid ISO-8601, it returns a NAN value. */
-+ (CFAbsoluteTime) absoluteTimeWithJSONObject: (id)jsonObject;
+    If the object is not a string, or not valid ISO-8601, or nil, it returns a NAN value. */
++ (CFAbsoluteTime) absoluteTimeWithJSONObject: (nullable id)jsonObject;
 
 /** Follows a JSON-Pointer, returning the value pointed to, or nil if nothing.
     See spec at: http://tools.ietf.org/html/draft-ietf-appsawg-json-pointer-04 */
-+ (nullable id) valueAtPointer: (NSString*)pointer inObject: (id)object;
++ (nullable id) valueAtPointer: (NSString*)pointer inObject: (nullable id)object;
 
 /** Encodes an NSData as a string in Base64 format. */
 + (NSString*) base64StringWithData: (NSData*)data;
 
 /** Parses a Base64-encoded string into an NSData object.
-    If the object is not a string, or not valid Base64, it returns nil. */
-+ (nullable NSData*) dataWithBase64String: (id)jsonObject;
+    If the object is not a string, or not valid Base64, or nil, it returns nil. */
++ (nullable NSData*) dataWithBase64String: (nullable id)jsonObject;
 
 /** Estimates the amount of memory used by the object and those it references. */
 + (size_t) estimateMemorySize: (id)object;
@@ -95,7 +93,7 @@ typedef void (^CBLOnMutateBlock)();
 /** Protocol for classes whose instances can encode themselves as JSON.
     Such classes can be used directly as property types in CBLModel subclasses. */
 @protocol CBLJSONEncoding <NSObject>
-- (instancetype) initWithJSON: (id)jsonObject;
+- (nullable instancetype) initWithJSON: (id)jsonObject;
 - (id) encodeAsJSON;
 
 @optional
@@ -109,6 +107,4 @@ typedef void (^CBLOnMutateBlock)();
 @end
 
 
-#if __has_feature(nullability)
-#pragma clang assume_nonnull end
-#endif
+NS_ASSUME_NONNULL_END
