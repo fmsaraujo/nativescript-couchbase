@@ -5,6 +5,28 @@ declare var com: any;
 declare var java: any;
 declare var android: any;
 
+function mapToJson(data: Object) {
+    var gson = (new com.google.gson.GsonBuilder()).create();
+    return gson.toJson(data);
+}
+
+function objectToMap(data: Object) {
+    var gson = (new com.google.gson.GsonBuilder()).create();
+    return gson.fromJson(JSON.stringify(data), (new java.util.HashMap).getClass());
+}
+
+function mapToObject(data: Object) {
+    var gson = (new com.google.gson.GsonBuilder()).create();
+    return JSON.parse(gson.toJson(data));
+}
+
+export enum ReplicationStatus {
+    Stopped = 0,
+    Offline,
+    Idle,
+    Active,
+}
+
 export class Couchbase {
 
     private context: any;
@@ -26,7 +48,7 @@ export class Couchbase {
         var document: any = documentId == null ? this.database.createDocument() : this.database.getDocument(documentId);
         var documentId: string = document.getId();
         try {
-            document.putProperties(this.objectToMap(data));
+            document.putProperties(objectToMap(data));
         } catch (exception) {
             console.error("DOCUMENT ERROR:", exception.message);
             throw new Error("DOCUMENT ERROR: " + exception.message);
@@ -36,16 +58,16 @@ export class Couchbase {
 
     public getDocument(documentId: string) {
         var document: any = this.database.getDocument(documentId);
-        return JSON.parse(this.mapToJson(document.getProperties()));
+        return JSON.parse(mapToJson(document.getProperties()));
     }
 
     public updateDocument(documentId: string, data: any) {
         let document: any = this.database.getDocument(documentId);
-        let temp: any = JSON.parse(this.mapToJson(document.getProperties()));
+        let temp: any = JSON.parse(mapToJson(document.getProperties()));
         data._id = temp._id;
         data._rev = temp._rev;
         try {
-            document.putProperties(this.objectToMap(data));
+            document.putProperties(objectToMap(data));
         } catch (exception) {
             console.error("DOCUMENT ERROR", exception.message);
             throw new Error("DOCUMENT ERROR: " + exception.message);
@@ -76,35 +98,35 @@ export class Couchbase {
         view.setMap(new com.couchbase.lite.Mapper({
             map(document, emitter) {
                 let e = new Emitter(emitter);
-                callback(JSON.parse(self.mapToJson(document)), e);
+                callback(JSON.parse(mapToJson(document)), e);
             }
         }), viewRevision);
     }
 
     public executeQuery(viewName: string, options?: any) {
         var query = this.database.getView(viewName).createQuery();
-        if(options != null) {
-            if(options.descending) {
+        if (options != null) {
+            if (options.descending) {
                 query.setDescending(options.descending);
             }
-            if(options.limit) {
+            if (options.limit) {
                 query.setLimit(options.limit);
             }
-            if(options.skip) {
+            if (options.skip) {
                 query.setSkip(options.skip);
             }
-            if(options.startKey) {
+            if (options.startKey) {
                 query.setStartKey(options.startKey);
             }
-            if(options.endKey) {
+            if (options.endKey) {
                 query.setEndKey(options.endKey);
             }
         }
         var result = query.run();
         var parsedResult: Array<any> = [];
-        while(result.hasNext()) {
+        while (result.hasNext()) {
             var row = result.next();
-            parsedResult.push(this.mapToObject(row.getValue()));
+            parsedResult.push(mapToObject(row.getValue()));
         }
         return parsedResult;
     }
@@ -133,30 +155,65 @@ export class Couchbase {
 
     public addDatabaseChangeListener(callback: any) {
         try {
-            this.database.addChangeListener(new com.couchbase.lite.Database.ChangeListener({
+            const listener = new com.couchbase.lite.Database.ChangeListener({
                 changed(event) {
                     let changes: Array<any> = event.getChanges().toArray();
                     callback(changes);
                 }
-            }));
+            });
+
+            this.database.addChangeListener(listener);
+            return listener;
         } catch (exception) {
             console.error("DATABASE LISTENER ERROR", exception.message);
         }
     }
 
-    private objectToMap(data: Object) {
-        var gson = (new com.google.gson.GsonBuilder()).create();
-        return gson.fromJson(JSON.stringify(data), (new java.util.HashMap).getClass());
+    public removeDatabaseChangeListener(listener: any) {
+        try {
+            this.database.removeChangeListener(listener);
+        } catch (exception) {
+            console.error("DATABASE LISTENER REMOVAL ERROR", exception.message);
+        }
     }
 
-    private mapToJson(data: Object) {
-        var gson = (new com.google.gson.GsonBuilder()).create();
-        return gson.toJson(data);
+    public addDatabaseConflictsListener(
+        conflictsCallback: (documentId: string, conflictingRevisions: SavedRevision[]) => UnsavedRevision[],
+        successCallback: (documentId: string) => void,
+        errorCallback: (documentId: string, error: any) => any
+    ): any {
+        const database = this.database;
+
+        const conflictsLiveQuery = database.createAllDocumentsQuery().toLiveQuery();
+        conflictsLiveQuery.setAllDocsMode(com.couchbase.lite.Query.AllDocsMode.ONLY_CONFLICTS);
+
+        try {
+            const listener = new DatabaseConflictsChangeListener(
+                this.database,
+                conflictsLiveQuery,
+                conflictsCallback,
+                successCallback,
+                errorCallback);
+
+            conflictsLiveQuery.addChangeListener(listener);
+            conflictsLiveQuery.start();
+
+            return listener;
+        } catch (e) {
+            console.log(e);
+            return null;
+        }
     }
 
-    private mapToObject(data: Object) {
-        var gson = (new com.google.gson.GsonBuilder()).create();
-        return JSON.parse(gson.toJson(data));
+    private removeDatabaseConflictsListener(listener: any) {
+        try {
+            const conflictsLiveQuery = listener.getConflictsLiveQuery();
+
+            conflictsLiveQuery.removeChangeListener(listener);
+            conflictsLiveQuery.stop();
+        } catch (exception) {
+            console.error("DATABASE CONFLICTS LISTENER REMOVAL ERROR", exception.message);
+        }
     }
 
     /*private getPath(uri) {
@@ -272,9 +329,114 @@ export class Replicator {
     };
 
     deleteCookie(name: String) {
-      this.replicator.deleteCookieNamed(name);
+        this.replicator.deleteCookieNamed(name);
     }
 
+    setAuthenticator(authenticator: any) {
+        this.replicator.setAuthenticator(authenticator);
+    }
+
+    addReplicationChangeListener(callback: (replicationStatus: ReplicationStatus) => void): any {
+        try {
+            const listener = new com.couchbase.lite.replicator.Replication.ChangeListener({
+                changed(event) {
+                    // https://github.com/couchbase/couchbase-lite-java-core/blob/0a991a6f132d4d262cd84e32c5f01a9a6ea03468/src/main/java/com/couchbase/lite/replicator/Replication.java#L591
+                    const status = event.getSource().getStatus();
+
+                    switch (status) {
+                        case com.couchbase.lite.replicator.Replication.ReplicationStatus.REPLICATION_STOPPED:
+                            return callback(ReplicationStatus.Stopped);
+
+                        case com.couchbase.lite.replicator.Replication.ReplicationStatus.REPLICATION_OFFLINE:
+                            return callback(ReplicationStatus.Offline);
+
+                        case com.couchbase.lite.replicator.Replication.ReplicationStatus.REPLICATION_ACTIVE:
+                            return callback(ReplicationStatus.Active);
+
+                        default:
+                            return callback(ReplicationStatus.Idle);
+                    }
+                }
+            });
+
+            this.replicator.addChangeListener(listener);
+            return listener;
+        } catch (exception) {
+            console.error("REPLICATION LISTENER ERROR", exception.message);
+            return null;
+        }
+    }
+
+    removeReplicationChangeListener(listener: any) {
+        try {
+            this.replicator.removeChangeListener(listener);
+        } catch (exception) {
+            console.error("REPLICATION LISTENER REMOVAL ERROR", exception.message);
+        }
+    }
+
+    getLastError() {
+        return this.replicator.getLastError();
+    }
+
+    getStatus() {
+        return this.replicator.getStatus();
+    }
+
+}
+
+export class Authenticator {
+    static createBasicAuthenticator(username: string, password: string) {
+        return com.couchbase.lite.auth.AuthenticatorFactory.createBasicAuthenticator(username, password);
+    }
+}
+
+export abstract class Revision {
+
+    protected revision: any;
+
+    constructor(revision: any) {
+        this.revision = revision;
+    }
+
+    getId() {
+        return this.revision.getId();
+    }
+
+    getUserProperties() {
+        return mapToObject(this.revision.getUserProperties());
+    }
+
+    getIsDeletion() {
+        return this.revision.isDeletion();
+    }
+}
+
+export class SavedRevision extends Revision {
+
+    constructor(revision: any) {
+        super(revision);
+    }
+
+    createRevision() {
+        const unsavedRevision = this.revision.createRevision();
+        return new UnsavedRevision(unsavedRevision);
+    }
+}
+
+export class UnsavedRevision extends Revision {
+
+    constructor(revision: any) {
+        super(revision);
+    }
+
+    setIsDeletion(value: boolean) {
+        this.revision.setIsDeletion(value);
+    }
+
+    saveAllowingConflict() {
+        this.revision.save(true);
+    }
 }
 
 export class Emitter {
@@ -286,7 +448,7 @@ export class Emitter {
     }
 
     emit(key: Object, value: Object) {
-        if(typeof value === "object") {
+        if (typeof value === "object") {
             var gson = (new com.google.gson.GsonBuilder()).create();
             this.emitter.emit(key, gson.fromJson(JSON.stringify(value), (new java.util.HashMap).getClass()));
         } else {
@@ -294,4 +456,89 @@ export class Emitter {
         }
     }
 
+}
+
+@Interfaces([com.couchbase.lite.LiveQuery.ChangeListener])
+class DatabaseConflictsChangeListener extends (java.lang.Object as { new(): any; }) {
+    private database: any;
+    
+    private conflictsLiveQuery: any;
+
+    private conflictsCallback: (documentId: string, conflictingRevisions: SavedRevision[]) => UnsavedRevision[];
+    
+    private successCallback: (documentId: string) => void;
+
+    private errorCallback: (documentId: string, error: any) => void;
+
+    constructor(
+        database: any,
+        conflictsLiveQuery: any,
+        conflictsCallback: (documentId: string, conflictingRevisions: SavedRevision[]) => UnsavedRevision[],
+        successCallback: (documentId: string) => void,
+        errorCallback: (documentId: string, error: any) => any
+    ) {
+        super();
+
+        this.database = database;
+        this.conflictsLiveQuery = conflictsLiveQuery;
+        this.conflictsCallback = conflictsCallback;
+        this.successCallback = successCallback;
+        this.errorCallback = errorCallback;
+
+        return global.__native(this);
+    }
+
+    public getDatabase() {
+        return this.database;
+    }
+
+    public getConflictsLiveQuery() {
+        return this.conflictsLiveQuery;
+    }
+
+    public changed(event) {
+        this.resolveConflicts();
+    }
+
+    private resolveConflicts() {
+        const rows = this.conflictsLiveQuery.getRows();
+        let row = rows.next();
+
+        while (row) {
+            const documentId = row.getDocumentId();
+            const conflictingRevisions = row.getConflictingRevisions();
+
+            if (!conflictingRevisions || conflictingRevisions.size() === 1) {
+                row = rows.next();
+                continue;
+            }
+
+            const savedConflictingRevisions = [];
+
+            for (let i = 0; i < conflictingRevisions.size(); i++) {
+                savedConflictingRevisions.push(new SavedRevision(conflictingRevisions.get(i)));
+            }
+
+            const resolvedRevisions = this.conflictsCallback(documentId, savedConflictingRevisions);
+
+            const successCallback = this.successCallback;
+            const errorCallback = this.errorCallback;
+
+            this.database.runInTransaction(new com.couchbase.lite.TransactionalTask({
+                run(): boolean {
+                    try {
+                        resolvedRevisions.forEach(rr => rr.saveAllowingConflict());
+                        successCallback(documentId);
+                        return true;
+                    } catch (e) {
+                        console.error(e);
+                        errorCallback(documentId, e);
+                        return false;
+                    }
+                }
+            }));
+
+            row = rows.next();
+        }
+    }
 }
