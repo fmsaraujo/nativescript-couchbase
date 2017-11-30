@@ -104,11 +104,22 @@ database.createView("people", "1", function(document, emitter) {
 #### Querying a MapReduce View
 
 ```javascript
-var rows = database.executeQuery("people");
+var rows = database.executeQuery("people", {descending : false, limit : 20,  skip : 1, startKey: "name to strat with", endKey:"name to end at"});
 for(var i = 0; i < rows.length; i++) {
     personList.push(rows[i]);
 }
 ```
+The available options when querying a MapReduce View are as follows:
+
+* **startKey**: the key to start at. The default value, null, means to start from the beginning.
+
+* **endKey**: the last key to return. The default value, null, means to continue to the end.
+
+* **descending**: If set to true, the keys will be returned in reverse order. (This also reverses the meanings of the startKey and endKey properties, since the query will now start at the highest keys and end at lower ones!)
+
+* **limit**: If nonzero, this is the maximum number of rows that will be returned.
+
+* **skip**: If nonzero, this many rows will be skipped (starting from the startKey if any.)
 
 ## Synchronization with Couchbase Sync Gateway and Couchbase Server
 
