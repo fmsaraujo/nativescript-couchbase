@@ -153,12 +153,19 @@ export class Couchbase {
         return new Replicator(replication);
     }
 
-    public addDatabaseChangeListener(callback: any) {
+    public addDatabaseChangeListener(callback: (changes: DatabaseChange[]) => void) {
         try {
             const listener = new com.couchbase.lite.Database.ChangeListener({
                 changed(event) {
                     let changes: Array<any> = event.getChanges().toArray();
-                    callback(changes);
+                    let databaseChanges: DatabaseChange[] = [];
+
+                    for (var i = 0; i < changes.length; i++) {
+                        const c = changes[i];
+                        databaseChanges.push(new DatabaseChange(c));
+                    }
+
+                    callback(databaseChanges);
                 }
             });
 
@@ -388,6 +395,45 @@ export class Replicator {
 export class Authenticator {
     static createBasicAuthenticator(username: string, password: string) {
         return com.couchbase.lite.auth.AuthenticatorFactory.createBasicAuthenticator(username, password);
+    }
+}
+
+export class DatabaseChange {
+
+    change: any;
+
+    constructor(change: any) {
+        this.change = change;
+    }
+
+    getDocumentId() {
+        return this.change.getDocumentId();
+    }
+
+    getRevisionId() {
+        return this.change.getRevisionId();
+    }
+
+    getSourceURL() {
+        const source = this.change.getSource();
+
+        if (source) {
+            return source.toString();
+        }
+
+        return null;
+    }
+
+    isCurrentRevision() {
+        return this.change.isCurrentRevision();
+    }
+
+    isConflict() {
+        return this.change.isConflict();
+    }
+
+    isDeletion() {
+        return this.change.isDeletion();
     }
 }
 

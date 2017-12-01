@@ -191,7 +191,7 @@ export class Couchbase {
         return new Replicator(replication);;
     }
 
-    addDatabaseChangeListener(callback: any): any {
+    addDatabaseChangeListener(callback: (changes: DatabaseChange[]) => void): any {
         const defaultCenter = getter(NSNotificationCenter, NSNotificationCenter.defaultCenter);
         const mainQueue = getter(NSOperationQueue, NSOperationQueue.mainQueue);
 
@@ -344,6 +344,16 @@ export class DatabaseChange {
 
     getRevisionId() {
         return this.change.revisionID;
+    }
+
+    getSourceURL() {
+        const source = this.change.source;
+
+        if (source) {
+            return source.absoluteURL;
+        }
+
+        return null;
     }
 
     isCurrentRevision() {

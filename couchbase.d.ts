@@ -18,7 +18,7 @@ declare module "nativescript-couchbase" {
         executeQuery(viewName: string, options?: any);
         createPullReplication(remoteUrl: string): Replicator;
         createPushReplication(remoteUrl: string): Replicator;
-        addDatabaseChangeListener(callback: any);
+        addDatabaseChangeListener(callback: (changes: DatabaseChange[]) => void);
         removeDatabaseChangeListener(listener: any);
         addDatabaseConflictsListener(
             conflictsCallback: (documentId: string, conflictingRevisions: SavedRevision[]) => UnsavedRevision[],
@@ -50,6 +50,7 @@ declare module "nativescript-couchbase" {
         constructor(change: any);
         getDocumentId(): string;
         getRevisionId(): string;
+        getSourceURL(): string;
         isCurrentRevision(): boolean;
         isConflict(): boolean;
         isDeletion(): boolean;
