@@ -84,6 +84,16 @@ export class Couchbase {
         return null;
     }
 
+    getDocumentLatestRevisionId(documentId: string): string {
+        var document = this.database.documentWithID(documentId);
+        
+        if (document) {
+            return document.currentRevisionID;
+        }
+
+        return null;
+    }
+
     updateDocument(documentId: string, data: any) {
         var document = this.database.documentWithID(documentId);
         let temp: any = this.getDocument(documentId);

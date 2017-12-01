@@ -61,6 +61,16 @@ export class Couchbase {
         return JSON.parse(mapToJson(document.getProperties()));
     }
 
+    public getDocumentLatestRevisionId(documentId: string): string {
+        var document = this.database.getDocument(documentId);
+        
+        if (document) {
+            return document.getCurrentRevisionId();
+        }
+
+        return null;
+    }
+
     public updateDocument(documentId: string, data: any) {
         let document: any = this.database.getDocument(documentId);
         let temp: any = JSON.parse(mapToJson(document.getProperties()));

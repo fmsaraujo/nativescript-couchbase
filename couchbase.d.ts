@@ -11,6 +11,7 @@ declare module "nativescript-couchbase" {
         constructor(databaseName: string);
         createDocument(data: Object, documentId?: string);
         getDocument(documentId: string);
+        getDocumentLatestRevisionId(documentId: string): string;
         updateDocument(documentId: string, data: any);
         deleteDocument(documentId: string): boolean;
         destroyDatabase();
